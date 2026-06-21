@@ -1,0 +1,40 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    - cron: "0 6 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ping Supabase (app_me)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "https://czvjtmenwpqmydhkyqzm.supabase.co/rest/v1/rpc/app_me" \
+            -H "apikey: sb_publishable_g3AIW5oo621D0rbvJba-zw_M-Jh9tOV" \
+            -H "Content-Type: application/json" \
+            -d '{"p_token":"keep-alive-ping"}')
+          echo "Supabase status: HTTP $code"
+          if [ "$code" = "200" ]; then
+            echo "Supabase is active"
+          else
+            echo "Unexpected response: HTTP $code"
+          fi
+
+      - name: Heartbeat commit (keeps the schedule alive forever)
+        run: |
+          mkdir -p .keepalive
+          echo "last ping: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" > .keepalive/last-ping.txt
+          git config user.name  "keepalive-bot"
+          git config user.email "keepalive@users.noreply.github.com"
+          git add .keepalive/last-ping.txt
+          git commit -m "keep-alive $(date -u '+%Y-%m-%d %H:%M')" || echo "nothing to commit"
+          git push
